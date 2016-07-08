@@ -83,6 +83,43 @@ def countHueDistance(hue1, hue2):
         hue1, hue2 = hue2, hue1
     return min(hue2 - hue1, 180 + hue1 - hue2)
 
+def getTemperatureImg(image):
+    img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    height, width = img.shape[0], img.shape[1]
+    temperatureImg = np.zeros((height, width), dtype='uint8')
+    channelDict = {'saturation':{'value':0, 'valueMax':255, 'weight':0.5},
+    'value':{'value':0, 'valueMax':255, 'weight':0.5}}
+    for h in range(height):
+        for w in range(width):
+            channelDict['saturation']['value'] = img[h][w][1]
+            channelDict['value']['value'] = img[h][w][2]
+            temperatureImg[h][w] = countTemperature(channelDict) * 255
+    return temperatureImg
+
+def Segmentation(image):
+    height, width = image.shape[0], image.shape[1]
+    temperatureImg = getTemperatureImg(image)
+    averTemperature = temperatureImg.sum() / (height * width)
+    data = cv2.calcHist([temperatureImg], [0], None, [256], [0, 255])
+    threshold = OSTU(data)
+    _, img = cv2.threshold(temperatureImg, 1.2 * threshold, 255, cv2.THRESH_BINARY)
+    fg = cv2.erode(img, None, iterations = 5)
+    cv2.imshow('foreground', fg)
+    cv2.waitKey()
+    _, img = cv2.threshold(temperatureImg, 0.8 * threshold, 255, cv2.THRESH_BINARY)
+    _, bg = cv2.threshold(cv2.dilate(img, None, iterations = 3), 1, 128, cv2.THRESH_BINARY_INV)
+    cv2.imshow('background', bg)
+    cv2.waitKey()
+    marker = cv2.add(fg, bg)
+    cv2.imshow('maker_before', marker)
+    cv2.waitKey()
+    markers = np.int32(marker)
+    cv2.watershed(image, markers)
+    m = cv2.convertScaleAbs(markers)
+    cv2.imshow('marker', m)
+    cv2.waitKey()
+    return m
+
 def ValueTemperature(image):
     #image = cv2.resize(image, (300, 300))
     hsvImage = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
@@ -119,7 +156,7 @@ def ValueTemperature(image):
                 if hueDict[hue] > maxHueCount:
                     maxHueCount = hueDict[hue]
                     maxHue = hue
-                    
+
     # get the target pixel by both threadsold and hue
     targetPixel = {}
     hsvSum = np.array([0.0] * 3)
@@ -236,4 +273,7 @@ if __name__ == '__main__':
     #colorThreadsold(cv2.imread("yellow.jpg"))
     #cv2.imshow('dark channel', getDarkChannel(cv2.imread("5.jpg"), (15, 15)))
     #cv2.waitKey()
-    ValueTemperature(cv2.imread("5.jpg"))
+    #ValueTemperature(cv2.imread("5.jpg"))
+    Segmentation(cv2.imread("5.jpg"))
+    cv2.imshow('temperature', getTemperatureImg(cv2.imread("5.jpg")))
+    cv2.waitKey()
