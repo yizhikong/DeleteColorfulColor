@@ -96,6 +96,9 @@ def getTemperatureImg(image):
             temperatureImg[h][w] = countTemperature(channelDict) * 255
     return temperatureImg
 
+def bfs(image, marker):
+    pass
+
 def Segmentation(image):
     height, width = image.shape[0], image.shape[1]
     temperatureImg = getTemperatureImg(image)
@@ -104,21 +107,46 @@ def Segmentation(image):
     threshold = OSTU(data)
     _, img = cv2.threshold(temperatureImg, 1.2 * threshold, 255, cv2.THRESH_BINARY)
     fg = cv2.erode(img, None, iterations = 5)
-    cv2.imshow('foreground', fg)
-    cv2.waitKey()
     _, img = cv2.threshold(temperatureImg, 0.8 * threshold, 255, cv2.THRESH_BINARY)
     _, bg = cv2.threshold(cv2.dilate(img, None, iterations = 3), 1, 128, cv2.THRESH_BINARY_INV)
-    cv2.imshow('background', bg)
-    cv2.waitKey()
     marker = cv2.add(fg, bg)
-    cv2.imshow('maker_before', marker)
-    cv2.waitKey()
     markers = np.int32(marker)
-    cv2.watershed(image, markers)
-    m = cv2.convertScaleAbs(markers)
-    cv2.imshow('marker', m)
+    # in markers 255 is colorfulcolor, 128 is other, -1 is boundary
+    temperatureImg = np.rollaxis(np.array([temperatureImg] * 3), 0, 3)
+    cv2.watershed(np.array(temperatureImg, dtype='uint8'), markers)
+    return markers
+
+def Transform(image, marker):
+    hsvImage = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    height, width = image.shape[0], image.shape[1]
+    select_h = random.randint(0, height)
+    select_w = random.randint(0, width)
+    while marker[select_h][select_w] != 128:
+        print 're-select'
+        select_h = random.randint(0, height)
+        select_w = random.randint(0, width)
+    #hsvSample = np.array([108, 235, 231])
+    hsvSample = np.array(hsvImage[select_h][select_w])
+    img = image.copy()
+    img[marker != 255] = [0, 0, 0]
+    targetCount = len(img[marker == 255])
+    h, s, v = cv2.split(hsvImage)
+    hsvAver = [h[marker == 255].sum()/targetCount, s[marker == 255].sum()/targetCount, v[marker == 255].sum()/targetCount]
+    hsvChange = hsvAver - hsvSample
+    print hsvSample
+    for h in range(height):
+        for w in range(width):
+            if marker[h][w] != 255:
+                continue
+            hh = int(hsvImage[h][w][0]) - hsvChange[0]
+            ss = int(hsvImage[h][w][1]) - hsvChange[1]
+            vv = int(hsvImage[h][w][2]) - hsvChange[2]
+            hsvImage[h][w][0] = max(min(hh, 180), 0)
+            hsvImage[h][w][1] = max(min(ss, 255), 0)
+            hsvImage[h][w][2] = max(min(vv, 255), 0)
+    cv2.imshow('image', cv2.cvtColor(hsvImage, cv2.COLOR_HSV2BGR))
+    #cv2.imshow('image', cv2.cvtColor(labImage, cv2.COLOR_LAB2BGR))
     cv2.waitKey()
-    return m
 
 def ValueTemperature(image):
     #image = cv2.resize(image, (300, 300))
@@ -274,6 +302,7 @@ if __name__ == '__main__':
     #cv2.imshow('dark channel', getDarkChannel(cv2.imread("5.jpg"), (15, 15)))
     #cv2.waitKey()
     #ValueTemperature(cv2.imread("5.jpg"))
-    Segmentation(cv2.imread("5.jpg"))
-    cv2.imshow('temperature', getTemperatureImg(cv2.imread("5.jpg")))
-    cv2.waitKey()
+    img = cv2.imread("5.jpg")
+    img = cv2.resize(img, (img.shape[1]/3, img.shape[0]/3))
+    marker = Segmentation(img)
+    Transform(img, marker)
