@@ -96,6 +96,22 @@ def getTemperatureImg(image):
             temperatureImg[h][w] = countTemperature(channelDict) * 255
     return temperatureImg
 
+def getTemperatureImgInLab(image):
+    img = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    height, width = img.shape[0], img.shape[1]
+    temperatureImg = np.zeros((height, width), dtype='uint8')
+    channelDict = {'color':{'value':0, 'valueMax':255, 'weight':0.5},
+    'lightness':{'value':0, 'valueMax':255, 'weight':0.5}}
+    for h in range(height):
+        for w in range(width):
+            #color = max(int(img[h][w][1]) - 128, int(img[h][w][2]) - 128) - 0.5 * max(max(128 - int(img[h][w][1]), 128 - int(img[h][w][2])), 0)
+            color = 45 if int(img[h][w][1]) + int(img[h][w][2]) > 256 else 0
+            channelDict['color']['value'] = color
+            channelDict['lightness']['value'] = img[h][w][0]
+            #print channelDict['color']['value']
+            temperatureImg[h][w] = countTemperature(channelDict) * 255
+    return temperatureImg
+
 def bfs(image, marker):
     pass
 
@@ -112,11 +128,15 @@ def Segmentation(image):
     marker = cv2.add(fg, bg)
     markers = np.int32(marker)
     # in markers 255 is colorfulcolor, 128 is other, -1 is boundary
-    temperatureImg = np.rollaxis(np.array([temperatureImg] * 3), 0, 3)
-    cv2.watershed(np.array(temperatureImg, dtype='uint8'), markers)
-    return markers
+    tpImg = np.rollaxis(np.array([temperatureImg] * 3), 0, 3)
+    cv2.watershed(np.array(tpImg, dtype='uint8'), markers)
+    return (markers, temperatureImg)
 
-def Transform(image, marker):
+def Transform(image, marker, temperatureImg):
+    tps = temperatureImg[marker == 255]
+    # count factor
+    min_tp, max_tp = tps.min(), tps.max()
+    dif_tp = max_tp - min_tp
     hsvImage = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     height, width = image.shape[0], image.shape[1]
     select_h = random.randint(0, height)
@@ -138,13 +158,34 @@ def Transform(image, marker):
         for w in range(width):
             if marker[h][w] != 255:
                 continue
-            hh = int(hsvImage[h][w][0]) - hsvChange[0]
-            ss = int(hsvImage[h][w][1]) - hsvChange[1]
-            vv = int(hsvImage[h][w][2]) - hsvChange[2]
-            hsvImage[h][w][0] = max(min(hh, 180), 0)
+            factor = (max_tp - temperatureImg[h][w]) / float(dif_tp + 1e-4)
+            #hh = int(hsvImage[h][w][0]) - factor * hsvChange[0]
+            ss = int(hsvImage[h][w][1]) - factor * hsvChange[1]
+            vv = int(hsvImage[h][w][2]) - factor * hsvChange[2]
+            #hsvImage[h][w][0] = max(min(hh, 180), 0)
             hsvImage[h][w][1] = max(min(ss, 255), 0)
             hsvImage[h][w][2] = max(min(vv, 255), 0)
     cv2.imshow('image', cv2.cvtColor(hsvImage, cv2.COLOR_HSV2BGR))
+    #cv2.imshow('image', cv2.cvtColor(labImage, cv2.COLOR_LAB2BGR))
+    cv2.waitKey()
+
+def TransformInLab(image, marker):
+    labImage = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+    height, width = image.shape[0], image.shape[1]
+    l, a, b = cv2.split(labImage)
+    targetA, targetB = a[marker == 255], b[marker == 255]
+    min_a, max_a = targetA.min(), targetA.max()
+    min_b, max_b = targetB.min(), targetB.max()
+    for h in range(height):
+        for w in range(width):
+            if marker[h][w] != 255:
+                continue
+            if int(a[h][w]) + int(b[h][w]) < 255:
+                continue
+            labImage[h][w][0] = 0.8 * labImage[h][w][0]
+            #labImage[h][w][1] = 255 - a[h][w]
+            #labImage[h][w][2] = 255 - b[h][w]
+    cv2.imshow('image', cv2.cvtColor(labImage, cv2.COLOR_LAB2BGR))
     #cv2.imshow('image', cv2.cvtColor(labImage, cv2.COLOR_LAB2BGR))
     cv2.waitKey()
 
@@ -304,5 +345,5 @@ if __name__ == '__main__':
     #ValueTemperature(cv2.imread("5.jpg"))
     img = cv2.imread("5.jpg")
     img = cv2.resize(img, (img.shape[1]/3, img.shape[0]/3))
-    marker = Segmentation(img)
-    Transform(img, marker)
+    marker, temperatureImg = Segmentation(img)
+    Transform(img, marker, temperatureImg)
