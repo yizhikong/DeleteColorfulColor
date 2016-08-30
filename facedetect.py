@@ -11,7 +11,7 @@ def draw_rects(img, rects, color):
 def face_rect_detect(url):
     api = 'https://apicloud-facerect.p.mashape.com/process-url.json?'
     request = urllib2.Request(api + urllib.urlencode({"url":url}))
-    request.add_header('X-Mashape-Key', 'zbtIFOAKACmshiw0vq6bL8zcQq7cp1rJdDijsn2EghpmPyNF8o')
+    request.add_header('X-Mashape-Key', 'YOURKEY')
     request.add_header('Accept', 'application/json')
     response = urllib2.urlopen(request).read()
     # {"faces":[{"orientation":"frontal","x":638,"y":145,"width":251,"height":251},{"orientation":"profile-left","x":700,"y":746,"width":88,"height":150}],"image":{"width":1280,"height":960}}
@@ -27,7 +27,24 @@ def microsoft_detect(imgUrl):
     data = json.dumps({'url':imgUrl})
     request = urllib2.Request(api, data)
     request.add_header('Content-Type', 'application/json')
-    request.add_header('Ocp-Apim-Subscription-Key', '1735d3db61de4bd6bb520dd377c691db')
+    request.add_header('Ocp-Apim-Subscription-Key', 'YOURKEY')
+    response = urllib2.urlopen(request).read()
+    # [{"faceId":"f1460bc3-174a-4315-baf2-0da8615ce94d","faceRectangle":{"top":172,"left":634,"width":257,"height":257}}]
+    print response
+    rects = []
+    for face in json.loads(response):
+        faceInfo = face["faceRectangle"]
+        cvx = faceInfo["left"]
+        cvy = faceInfo["top"]
+        rect = (cvx, cvy, cvx + faceInfo["width"], cvy + faceInfo["height"])
+        rects.append(rect)
+    return rects
+
+def microsoft_detect2(binary_img):
+    api = 'https://api.projectoxford.ai/face/v1.0/detect?returnFaceId=true&returnFaceLandmarks=false'
+    request = urllib2.Request(api, binary_img)
+    request.add_header('Content-Type', 'application/octet-stream')
+    request.add_header('Ocp-Apim-Subscription-Key', 'YOURKEY')
     response = urllib2.urlopen(request).read()
     # [{"faceId":"f1460bc3-174a-4315-baf2-0da8615ce94d","faceRectangle":{"top":172,"left":634,"width":257,"height":257}}]
     print response

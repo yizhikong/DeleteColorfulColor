@@ -87,8 +87,8 @@ def getTemperatureImg(image):
     img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     height, width = img.shape[0], img.shape[1]
     temperatureImg = np.zeros((height, width), dtype='uint8')
-    channelDict = {'saturation':{'value':0, 'valueMax':255, 'weight':0.5},
-    'value':{'value':0, 'valueMax':255, 'weight':0.5}}
+    channelDict = {'saturation':{'value':0, 'valueMax':255, 'weight':0.1},
+    'value':{'value':0, 'valueMax':255, 'weight':1}}
     for h in range(height):
         for w in range(width):
             channelDict['saturation']['value'] = img[h][w][1]
